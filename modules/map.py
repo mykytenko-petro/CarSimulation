@@ -6,7 +6,7 @@ from pytmx import TiledTileLayer, TiledObjectGroup
 class Map:
     def __init__(self, tmx_filepath: str) -> None:
         self.tmx_data = load_pygame(tmx_filepath)
-        
+
         self.walls = self._load_walls()
         self.spawns = self._load_spawns()
 
@@ -15,7 +15,7 @@ class Map:
         layer = self.tmx_data.get_layer_by_name("Walls")
 
         if isinstance(layer, TiledTileLayer):
-            for x, y, gid in layer: # type: ignore
+            for x, y, gid in layer:
                 if gid != 0:
                     rect = pygame.Rect(
                         x * self.tmx_data.tilewidth,
@@ -32,7 +32,7 @@ class Map:
         layer = self.tmx_data.get_layer_by_name("Spawns")
 
         if isinstance(layer, TiledTileLayer):
-            for x, y, gid in layer: # type: ignore
+            for x, y, gid in layer:
                 if gid != 0:
                     spawns.append(
                         pygame.Rect(
@@ -51,7 +51,7 @@ class Map:
     def draw(self, surface: pygame.Surface) -> None:
         for layer in self.tmx_data.visible_layers:
             if isinstance(layer, TiledTileLayer):
-                for x, y, gid in layer: # type: ignore
+                for x, y, gid in layer:
                     tile_image = self.tmx_data.get_tile_image_by_gid(gid)
                     if tile_image:
                         surface.blit(
