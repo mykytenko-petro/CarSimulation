@@ -4,84 +4,33 @@ from typing import Tuple
 
 import pygame
 
-
-class Ray:
-    def __init__(self, position: Tuple[float, float], angle: float, max_length: float) -> None:
-        self.pos = position
-        self.init_angle = angle
-        self.length = max_length
-        self.dir = (0.0, 0.0)
-        self.terminus: Tuple[float, float] = position
-        self.distance = max_length
-
-    def update(self, point: Tuple[float, float], direction: float, walls: list[pygame.Rect]) -> None:
-        self.pos = point
-        self.update_direction(direction)
-        self.update_terminus(walls)
-
-    def update_direction(self, direction: float) -> None:
-        angle = math.radians(self.init_angle + direction)
-        self.dir = (math.cos(angle), math.sin(angle))
-
-    def update_terminus(self, walls: list[pygame.Rect]) -> None:
-        min_distance = self.length
-        min_terminus = (
-            self.pos[0] + self.dir[0] * self.length,
-            self.pos[1] + self.dir[1] * self.length,
-        )
-
-        x3, y3 = self.pos
-        x4, y4 = self.pos[0] + self.dir[0], self.pos[1] + self.dir[1]
-
-        for rect in walls:
-            segments = [
-                (rect.topleft, rect.topright),
-                (rect.topright, rect.bottomright),
-                (rect.bottomright, rect.bottomleft),
-                (rect.bottomleft, rect.topleft),
-            ]
-
-            for (x1, y1), (x2, y2) in segments:
-                divisor = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
-                if divisor == 0:
-                    continue
-
-                t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / divisor
-                u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / divisor
-
-                if 0 <= t <= 1 and u > 0:
-                    x_point = x1 + t * (x2 - x1)
-                    y_point = y1 + t * (y2 - y1)
-                    dist_check = math.dist(self.pos, (x_point, y_point))
-
-                    if dist_check < min_distance:
-                        min_distance = dist_check
-                        min_terminus = (x_point, y_point)
-
-        self.distance = min_distance
-        self.terminus = min_terminus
+from .ray import Ray
 
 
 class Car:
     def __init__(self, x: float, y: float) -> None:
         self.x = x
         self.y = y
-        self.angle = 0.0  # Direction angle in degrees
+        self.angle = 0.0
         self.speed = 3.0
-        self.max_angle = 15.0  # Max random turn step angle
+        self.max_angle = 15.0
         self.decision_counter = 0
 
         self.length = 18.0
         self.width = 10.0
 
         self.is_colliding = False
-        self.friction_coeff = 0.4  # Speed reduction factor when sliding along walls/cars
+        self.friction_coeff = 0.4
 
-        # 3-Ray configuration (-60, 0, +60 degrees relative to direction)
         self.rays: list[Ray] = [
             Ray((self.x, self.y), angle, max_length=180.0)
-            for angle in range(-60, 70, 60)
+            for angle in [-60, 0, 60]
         ]
+
+        self.left_motor_signal: int = 0
+        self.right_motor_signal: int = 0
+        self.base_pwm: float = 180.0
+        self.turn_sensitivity: float = 4.0
 
     def get_bounding_box(self) -> pygame.Rect:
         return pygame.Rect(
@@ -105,61 +54,65 @@ class Car:
 
         return False
 
+    def calculate_motor_signals(self, delta_angle: float) -> Tuple[int, int]:
+        left_val = self.base_pwm + (delta_angle * self.turn_sensitivity)
+        right_val = self.base_pwm - (delta_angle * self.turn_sensitivity)
+
+        left_signal = int(max(0, min(255, left_val)))
+        right_signal = int(max(0, min(255, right_val)))
+
+        return left_signal, right_signal
+
     def update(
         self,
         walls: list[pygame.Rect],
         all_cars: list["Car"],
-        target: Tuple[float, float] | None = None,
     ) -> None:
-        """Updates rays, guidance, and handles movement with friction vector sliding on collisions."""
-        # 1. Gather collision targets
+        initial_angle = self.angle
+
         targets: list[pygame.Rect] = list(walls)
         for car in all_cars:
             if car is not self:
                 targets.append(car.get_bounding_box())
 
-        # 2. Update raycasting distance readings
         for ray in self.rays:
             ray.update((self.x, self.y), self.angle, targets)
 
-        # 3. Decision & Steering Logic
-        self.update_guidance(target)
+        self.update_guidance()
 
-        # 4. Movement execution with friction sliding mechanics
+        delta_angle = self.angle - initial_angle
+        self.left_motor_signal, self.right_motor_signal = self.calculate_motor_signals(delta_angle)
+
         rad = math.radians(self.angle)
         dx = self.speed * math.cos(rad)
         dy = self.speed * math.sin(rad)
 
-        # Try standard full move
         self.x += dx
         self.y += dy
 
         if self.check_collisions(walls, all_cars):
             self.is_colliding = True
-            # Revert full step
+
             self.x -= dx
             self.y -= dy
 
-            # Sliding check 1: Try horizontal movement with friction penalty
             self.x += dx * self.friction_coeff
             if self.check_collisions(walls, all_cars):
-                # Revert horizontal slide if blocked
                 self.x -= dx * self.friction_coeff
 
-                # Sliding check 2: Try vertical movement with friction penalty
                 self.y += dy * self.friction_coeff
                 if self.check_collisions(walls, all_cars):
-                    # Fully stuck in corner: revert vertical slide
+
                     self.y -= dy * self.friction_coeff
         else:
             self.is_colliding = False
 
-    def update_guidance(self, target: Tuple[float, float] | None) -> None:
+    def update_guidance(self) -> None:
         min_ray, max_ray = self.find_min_max_rays()
         if self.rays[min_ray].distance < 80.0:
             self.evasive_action(max_ray)
         else:
-            self.decision_counter_check(target)
+            self.decision_counter_check()
 
     def find_min_max_rays(self) -> Tuple[int, int]:
         max_distance, max_index = self.rays[0].distance, 0
@@ -182,27 +135,12 @@ class Car:
         else:
             self.angle += randint(0, int(self.max_angle))
 
-    def decision_counter_check(self, target: Tuple[float, float] | None) -> None:
+    def decision_counter_check(self) -> None:
         if self.decision_counter >= 10:
-            if target:
-                self.turn_towards_target(target)
-            else:
-                self.angle += randint(-int(self.max_angle), int(self.max_angle))
+            self.angle += randint(-int(self.max_angle), int(self.max_angle))
             self.decision_counter = 0
         else:
             self.decision_counter += 1
-
-    def turn_towards_target(self, target: Tuple[float, float]) -> None:
-        angle = self.get_angle_to_target(target)
-        target_distance = math.dist((self.x, self.y), target)
-
-        left = math.dist(self.get_projected_pos(self.angle - angle, target_distance), target)
-        right = math.dist(self.get_projected_pos(self.angle + angle, target_distance), target)
-
-        if right < left:
-            self.angle += randint(0, int(self.max_angle))
-        else:
-            self.angle += randint(-int(self.max_angle), 0)
 
     def get_angle_to_target(self, target: Tuple[float, float]) -> float:
         A = (self.x, self.y)
@@ -226,15 +164,17 @@ class Car:
         return self.x + length * math.cos(rad), self.y + length * math.sin(rad)
 
     def draw(self, surface: pygame.Surface) -> None:
-        # Draw 3 Rays
         for ray in self.rays:
             pygame.draw.line(surface, (255, 0, 0), (self.x, self.y), ray.terminus, 1)
             pygame.draw.circle(surface, (255, 255, 0), (int(ray.terminus[0]), int(ray.terminus[1])), 3)
 
-        # Draw Rotated Car Body (Turns red while actively experiencing wall friction)
         body_color = (255, 50, 50) if self.is_colliding else (0, 150, 255)
         rect_surface = pygame.Surface((self.length, self.width), pygame.SRCALPHA)
         rect_surface.fill(body_color)
         rotated_surface = pygame.transform.rotate(rect_surface, -self.angle)
         rect = rotated_surface.get_rect(center=(self.x, self.y))
         surface.blit(rotated_surface, rect.topleft)
+
+        font = pygame.font.SysFont(None, 14)
+        sig_text = font.render(f"L:{self.left_motor_signal} R:{self.right_motor_signal}", True, (255, 255, 255))
+        surface.blit(sig_text, (self.x - 20, self.y - self.width - 12))
