@@ -14,7 +14,6 @@ class Car:
         self.angle = 0.0
         self.speed = 3.0
         self.max_angle = 15.0
-        self.decision_counter = 0
 
         self.length = 18.0
         self.width = 10.0
@@ -111,17 +110,17 @@ class Car:
         min_ray, max_ray = self.find_min_max_rays()
         if self.rays[min_ray].distance < 80.0:
             self.evasive_action(max_ray)
-        else:
-            self.decision_counter_check()
 
     def find_min_max_rays(self) -> Tuple[int, int]:
         max_distance, max_index = self.rays[0].distance, 0
         min_distance, min_index = self.rays[0].distance, 0
+
         for index, ray in enumerate(self.rays):
             if ray.distance >= max_distance:
                 max_distance, max_index = ray.distance, index
             if ray.distance <= min_distance:
                 min_distance, min_index = ray.distance, index
+                
         return min_index, max_index
 
     def evasive_action(self, max_ray: int) -> None:
@@ -134,13 +133,6 @@ class Car:
                 self.angle += randint(0, int(self.max_angle))
         else:
             self.angle += randint(0, int(self.max_angle))
-
-    def decision_counter_check(self) -> None:
-        if self.decision_counter >= 10:
-            self.angle += randint(-int(self.max_angle), int(self.max_angle))
-            self.decision_counter = 0
-        else:
-            self.decision_counter += 1
 
     def get_angle_to_target(self, target: Tuple[float, float]) -> float:
         A = (self.x, self.y)
