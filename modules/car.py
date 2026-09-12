@@ -19,9 +19,7 @@ class Car:
     def check_collisions(
         self, walls: Sequence[pygame.Rect], all_cars: Sequence["Car"]
     ) -> bool:
-        obstacle_boxes = [
-            c.get_bounding_box() for c in all_cars if c is not self
-        ]
+        obstacle_boxes = [c.get_bounding_box() for c in all_cars if c is not self]
         return self.sim.check_collisions(walls, obstacle_boxes)
 
     def update(
@@ -29,14 +27,9 @@ class Car:
         walls: Sequence[pygame.Rect],
         all_cars: Sequence["Car"],
     ) -> None:
-        obstacle_boxes = [
-            c.get_bounding_box() for c in all_cars if c is not self
-        ]
-
+        obstacle_boxes = [c.get_bounding_box() for c in all_cars if c is not self]
         distances = self.sim.update_sensors(walls, obstacle_boxes)
-
         left_signal, right_signal = self.controller.update(distances)
-
         self.sim.step(left_signal, right_signal, walls, obstacle_boxes)
 
     def draw(self, surface: pygame.Surface) -> None:

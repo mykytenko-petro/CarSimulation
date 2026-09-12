@@ -5,24 +5,24 @@ from typing import Sequence, Tuple
 class GuidanceAlgorithm:
     def __init__(
         self,
-        base_pwm: float = 180.0,
+        base_pwm: float = 255.0,
         max_angle: float = 15.0,
         turn_sensitivity: float = 4.0,
         obstacle_threshold: float = 80.0,
+        stop_distance: float = 25.0,
+        slow_distance: float = 80.0,
     ) -> None:
         self.base_pwm = base_pwm
         self.max_angle = max_angle
         self.turn_sensitivity = turn_sensitivity
         self.obstacle_threshold = obstacle_threshold
+        self.stop_distance = stop_distance
+        self.slow_distance = slow_distance
 
         self.left_motor_signal: int = 0
         self.right_motor_signal: int = 0
 
     def find_min_max(self, distances: Sequence[float]) -> Tuple[int, int]:
-        """Find indices of minimum and maximum sensor distances."""
-        if not distances:
-            return 0, 0
-
         max_distance, max_index = distances[0], 0
         min_distance, min_index = distances[0], 0
 
@@ -37,18 +37,10 @@ class GuidanceAlgorithm:
     def calculate_evasive_delta(
         self, max_idx: int, distances: Sequence[float]
     ) -> float:
-        """
-        Calculate the steering delta angle based on which sector has the most clearance.
-        - Index 0: Left sensor
-        - Index 1: Center sensor
-        - Index 2: Right sensor
-        """
         max_ang = int(self.max_angle)
         if max_idx == 0:
-            # Turn left (negative angle)
             return float(randint(-max_ang, 0))
         elif max_idx == 1:
-            # Center is clear, pick side with greater clearance
             left_dist = distances[0] if len(distances) > 0 else 0
             right_dist = distances[2] if len(distances) > 2 else 0
             if left_dist > right_dist:
@@ -56,13 +48,13 @@ class GuidanceAlgorithm:
             else:
                 return float(randint(0, max_ang))
         else:
-            # Turn right (positive angle)
             return float(randint(0, max_ang))
 
-    def calculate_motor_signals(self, delta_angle: float) -> Tuple[int, int]:
-        """Convert a steering delta angle into clamped [0, 255] PWM motor signals."""
-        left_val = self.base_pwm - (delta_angle * self.turn_sensitivity)
-        right_val = self.base_pwm + (delta_angle * self.turn_sensitivity)
+    def calculate_motor_signals(
+        self, delta_angle: float, speed: float
+    ) -> Tuple[int, int]:
+        left_val = speed - (delta_angle * self.turn_sensitivity)
+        right_val = speed + (delta_angle * self.turn_sensitivity)
 
         left_signal = int(max(0, min(255, left_val)))
         right_signal = int(max(0, min(255, right_val)))
@@ -70,24 +62,32 @@ class GuidanceAlgorithm:
         return left_signal, right_signal
 
     def update(self, distances: Sequence[float]) -> Tuple[int, int]:
-        """
-        Run one guidance cycle given sensor distance readings.
-        Returns: (left_motor_signal, right_motor_signal)
-        """
         if not distances:
             self.left_motor_signal = int(self.base_pwm)
             self.right_motor_signal = int(self.base_pwm)
             return self.left_motor_signal, self.right_motor_signal
 
         min_idx, max_idx = self.find_min_max(distances)
+        min_dist = distances[min_idx]
+        front_dist = distances[1] if len(distances) > 1 else min_dist
 
-        if distances[min_idx] < self.obstacle_threshold:
+        if front_dist <= self.stop_distance:
+            speed = 0.0
+        elif front_dist >= self.slow_distance:
+            speed = self.base_pwm
+        else:
+            speed = self.base_pwm * (
+                (front_dist - self.stop_distance)
+                / (self.slow_distance - self.stop_distance)
+            )
+
+        if min_dist < self.obstacle_threshold:
             delta_angle = self.calculate_evasive_delta(max_idx, distances)
             self.left_motor_signal, self.right_motor_signal = (
-                self.calculate_motor_signals(delta_angle)
+                self.calculate_motor_signals(delta_angle, speed)
             )
         else:
-            self.left_motor_signal = int(self.base_pwm)
-            self.right_motor_signal = int(self.base_pwm)
+            self.left_motor_signal = int(speed)
+            self.right_motor_signal = int(speed)
 
         return self.left_motor_signal, self.right_motor_signal

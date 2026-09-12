@@ -15,7 +15,7 @@ class CarSimulation:
         length: float = 18.0,
         width: float = 10.0,
         wheel_base: float = 10.0,
-        friction_coeff: float = 0.1,
+        friction_coeff: float = 0.2,
         speed_factor: float = 0.02,
         ray_angles: Sequence[float] = (-60.0, 0.0, 60.0),
         ray_length: float = 180.0,
@@ -109,7 +109,6 @@ class CarSimulation:
         walls: Sequence[pygame.Rect],
         obstacle_boxes: Sequence[pygame.Rect],
     ) -> None:
-
         if self.check_collisions(walls, obstacle_boxes):
             self.is_colliding = True
 
@@ -121,7 +120,6 @@ class CarSimulation:
                 self.x -= dx * self.friction_coeff
 
                 self.y += dy * self.friction_coeff
-
                 if self.check_collisions(walls, obstacle_boxes):
                     self.y -= dy * self.friction_coeff
         else:
