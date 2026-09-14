@@ -8,6 +8,9 @@ from .guidance import GuidanceAlgorithm
 
 
 class Car:
+    '''
+    Основний контролер машинки який містить алгоритм відображення та фізичну симуляцію
+    '''
     def __init__(self, x: float, y: float) -> None:
         self.sim = CarSimulation(x, y)
         self.controller = GuidanceAlgorithm()
