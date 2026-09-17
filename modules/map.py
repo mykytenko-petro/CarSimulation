@@ -15,7 +15,7 @@ class Map:
         layer = self.tmx_data.get_layer_by_name("Walls")
 
         if isinstance(layer, TiledTileLayer):
-            for x, y, gid in layer:
+            for x, y, gid in layer: # type: ignore
                 if gid != 0:
                     rect = pygame.Rect(
                         x * self.tmx_data.tilewidth,
@@ -32,7 +32,7 @@ class Map:
         layer = self.tmx_data.get_layer_by_name("Spawns")
 
         if isinstance(layer, TiledTileLayer):
-            for x, y, gid in layer:
+            for x, y, gid in layer: # type: ignore
                 if gid != 0:
                     spawns.append(
                         pygame.Rect(
@@ -51,7 +51,7 @@ class Map:
     def draw(self, surface: pygame.Surface) -> None:
         for layer in self.tmx_data.visible_layers:
             if isinstance(layer, TiledTileLayer):
-                for x, y, gid in layer:
+                for x, y, gid in layer: # type: ignore
                     tile_image = self.tmx_data.get_tile_image_by_gid(gid)
                     if tile_image:
                         surface.blit(
