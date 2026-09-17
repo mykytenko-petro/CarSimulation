@@ -39,6 +39,4 @@ class Car:
         self.renderer.draw(
             surface,
             self.sim,
-            self.controller.left_motor_signal,
-            self.controller.right_motor_signal,
         )

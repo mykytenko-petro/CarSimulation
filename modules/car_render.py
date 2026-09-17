@@ -31,13 +31,6 @@ class CarRenderer:
         self._font_size = font_size
         self._font: Optional[pygame.font.Font] = None
 
-    def get_font(self) -> pygame.font.Font:
-        if self._font is None:
-            if not pygame.font.get_init():
-                pygame.font.init()
-            self._font = pygame.font.SysFont(None, self._font_size)
-        return self._font
-
     def draw_rays(
         self,
         surface: pygame.Surface,
@@ -85,30 +78,10 @@ class CarRenderer:
         # Відображаємо повернутий корпус на основну поверхню
         surface.blit(rotated_surface, rect.topleft)
 
-    def draw_telemetry(
-        self,
-        surface: pygame.Surface,
-        center: Tuple[float, float],
-        width: float,
-        left_signal: int,
-        right_signal: int,
-    ) -> None:
-        """
-        Виводить над машинкою текстові дані телеметрії (ШІМ лівого та правого моторів).
-        """
-        font = self.get_font()
-        sig_text = font.render(
-            f"L:{left_signal} R:{right_signal}", True, self.COLOR_TEXT
-        )
-        # Зміщуємо напис трохи вище корпусу машинки
-        surface.blit(sig_text, (center[0] - 20, center[1] - width - 12))
-
     def draw(
         self,
         surface: pygame.Surface,
         sim: CarSimulation,
-        left_signal: int,
-        right_signal: int,
     ) -> None:
         center = sim.get_center()
 
@@ -125,9 +98,3 @@ class CarRenderer:
             sim.width,
             sim.is_colliding,
         )
-
-        # 3. Малювання телеметрії моторів
-        if self.show_telemetry:
-            self.draw_telemetry(
-                surface, center, sim.width, left_signal, right_signal
-            )
