@@ -27,7 +27,7 @@ class CarSimulation:
         max_steering_angle: float = 30.0,
         friction_coeff: float = 1.0,
         speed_factor: float = 0.02,
-        ray_angles: Sequence[float] = (-75.0, -30.0, 0.0, 30.0, 75.0),
+        ray_angles: Sequence[float] = (-75.0, -15.0, 0.0, 15.0, 75.0),
         ray_length: float = 180.0,
     ) -> None:
         self.x = x

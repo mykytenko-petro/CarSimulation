@@ -1,25 +1,29 @@
+from enum import IntEnum
 from typing import Sequence, Tuple
 
 
+class SensorIndex(IntEnum):
+    FAR_LEFT = 0
+    MID_LEFT = 1
+    CENTER = 2
+    MID_RIGHT = 3
+    FAR_RIGHT = 4
+
+
 class GuidanceAlgorithm:
-    """Алгоритм навігації та оминання перешкод для механізму Аккермана на
-
-    основі 5 ToF-сенсорів.
-    """
-
     def __init__(
         self,
-        base_pwm: float = 180.0,
-        min_pwm: float = 80.0,
+        base_pwm: float = 230.0,
+        min_pwm: float = 0.0,
         max_steering_signal: float = 100.0,
         turn_sensitivity: float = 1.2,
         obstacle_threshold: float = 100.0,
         stop_distance: float = 0.0,
-        slow_distance: float = 90.0,
+        slow_distance: float = 10.0,
         # Вагові коефіцієнти: бічні сенсори відповідають за вирівнювання/виявлення бічних стін,
         # а діагональні — за напрямок повороту від перешкоди.
         w_diagonal: float = 1.0,
-        w_side: float = 1,
+        w_side: float = 1.0,
     ) -> None:
         self.base_pwm = base_pwm
         self.min_pwm = min_pwm
@@ -36,16 +40,12 @@ class GuidanceAlgorithm:
         self.steering_signal: int = 0
 
     def calculate_steering_signal(self, distances: Sequence[float]) -> int:
-        """Обчислює кут кермування за 5 сенсорами:
+        d_far_left = distances[SensorIndex.FAR_LEFT]
+        d_mid_left = distances[SensorIndex.MID_LEFT]
+        d_mid_right = distances[SensorIndex.MID_RIGHT]
+        d_far_right = distances[SensorIndex.FAR_RIGHT]
 
-        distances: [Far-Left (0), Mid-Left (1), Center (2), Mid-Right (3), Far-Right (4)]
-        """
-        d_far_left = distances[0]
-        d_mid_left = distances[1]
-        d_mid_right = distances[3]
-        d_far_right = distances[4]
-
-        # 1. Обчислюємо зважену різницю між лівою та правою сторонами (Virtual Field Vector)
+        # 1. Обчислюємо зважену різницю між лівою та правою сторонами
         # Якщо праворуч вільніше (d_right > d_left) -> diff > 0 -> поворот праворуч
         # Якщо ліворуч вільніше (d_left > d_right) -> diff < 0 -> поворот ліворуч
         left_score = (d_mid_left * self.w_diagonal) + (d_far_left * self.w_side)
@@ -87,14 +87,12 @@ class GuidanceAlgorithm:
         return int(max(0, min(255, speed)))
 
     def update(self, distances: Sequence[float]) -> Tuple[int, int]:
-        """Приймає масив з 5 відстаней: [Far-Left, Mid-Left, Center, Mid-Right,
-
-        Far-Right] Повертає: (drive_signal, steering_signal)
-        """
-        center_dist = distances[2]
-        
         # Для сповільнення переднім сектором використовуємо найменшу відстань серед 3 центральних
-        front_sector_dist = min(distances[1], distances[2], distances[3])
+        front_sector_dist = min(
+            distances[SensorIndex.MID_LEFT],
+            distances[SensorIndex.CENTER],
+            distances[SensorIndex.MID_RIGHT],
+        )
         min_dist = min(distances)
 
         # 1. Розрахунок кута керма
