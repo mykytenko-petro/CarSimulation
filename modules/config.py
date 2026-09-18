@@ -1,10 +1,12 @@
 import pygame
 
 
-WIDTH = 1080
+WIDTH = 1280
 HEIGHT = 720
 
-BACKGROUND_COLOR = (30, 30, 35)
+BACKGROUND_COLOR = pygame.Color("#1e1e23")
+WALL_COLOR = pygame.Color("#8f3dd4")
+SPAWN_COLOR = pygame.Color("#37946e")
 
 pygame.init()
 

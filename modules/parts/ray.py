@@ -1,90 +1,87 @@
 import math
-from typing import Tuple
+from typing import Sequence, Tuple
 
 import pygame
 
 
 class Ray:
     """
-    Клас, що симулює сенсор відстані (далекомір / raycast).
-    Випромінює промінь під певним кутом від машинки та обчислює дистанцію
-    до найближчої перешкоди (стіни або іншої машинки).
+    Клас, що симулює сенсор відстані (далекомір / raycast по поверхні).
+    Випромінює промінь від заданої позиції та обчислює дистанцію до
+    найближчого пікселя стіни (WALL_COLOR) або прямокутників перешкод.
     """
 
     def __init__(self, position: Tuple[float, float], angle: float, max_length: float) -> None:
         self.pos = position
         self.init_angle = angle
         self.length = max_length
-        self.dir = (0.0, 0.0)
+        self.dir: Tuple[float, float] = (0.0, 0.0)
         self.terminus: Tuple[float, float] = position
-        self.distance = max_length
-        self.dir = (0.0, 0.0)  # Одиничний вектор напрямку променя
-        self.terminus: Tuple[float, float] = position  # Кінцева точка (точка перетину або макс. дальність)
-        self.distance = max_length  # Виміряна дистанція до перешкоди
-
-    def update(self, point: Tuple[float, float], direction: float, walls: list[pygame.Rect]) -> None:
-        """
-        Оновлює стан променя: нове положення, глобальний кут та перетин з перешкодами.
-        """
-        self.pos = point
-        self.update_direction(direction)
-        self.update_terminus(walls)
+        self.distance: float = max_length
 
     def update_direction(self, direction: float) -> None:
-        """
-        Перераховує одиничний вектор напрямку променя в залежності від кута машинки.
-        """
+        """Перераховує одиничний вектор напрямку променя в залежності від кута машинки."""
         angle = math.radians(self.init_angle + direction)
         self.dir = (math.cos(angle), math.sin(angle))
 
-    def update_terminus(self, walls: list[pygame.Rect]) -> None:
+    def update_color_map(
+        self,
+        origin: Tuple[float, float],
+        direction: float,
+        map_surface: pygame.Surface,
+        wall_color: pygame.Color,
+        obstacle_boxes: Sequence[pygame.Rect],
+        step_size: float = 1.0,
+    ) -> None:
         """
-        Знаходить кінцеву точку променя та мінімальну дистанцію до перешкоди.
-        Використовує алгоритм перетину променя з відрізками кожної зі сторін прямокутників.
+        Сканує карту вздовж напрямку променя кроками step_size для виявлення 
+        найближчого пікселя стіни (wall_color) або перетину з obstacle_boxes.
         """
-        # За замовчуванням кінцева точка — максимальна довжина променя без перешкод
-        min_distance = self.length
-        min_terminus = (
+        self.pos = origin
+        self.update_direction(direction)
+
+        map_w, map_h = map_surface.get_size()
+        target_rgb = (wall_color.r, wall_color.g, wall_color.b)
+
+        current_dist = 0.0
+        hit = False
+        hit_pos = (
             self.pos[0] + self.dir[0] * self.length,
             self.pos[1] + self.dir[1] * self.length,
         )
 
-        # Координати променя: точка початку (x3, y3) і точка на векторі напрямку (x4, y4)
-        x3, y3 = self.pos
-        x4, y4 = self.pos[0] + self.dir[0], self.pos[1] + self.dir[1]
+        while current_dist <= self.length:
+            curr_x = self.pos[0] + self.dir[0] * current_dist
+            curr_y = self.pos[1] + self.dir[1] * current_dist
 
-        for rect in walls:
-            # Розбиваємо кожен прямокутник перешкоди на 4 відрізки-сторони
-            segments = [
-                (rect.topleft, rect.topright),
-                (rect.topright, rect.bottomright),
-                (rect.bottomright, rect.bottomleft),
-                (rect.bottomleft, rect.topleft),
-            ]
+            ix, iy = int(curr_x), int(curr_y)
 
-            for (x1, y1), (x2, y2) in segments:
-                # Знаменник формули перетину прямих (визначник матриці перетину)
-                divisor = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
-                if divisor == 0:
-                    # Промінь та відрізок паралельні
-                    continue
+            # 1. Перевірка за межами мапи (поза карти = стіна)
+            if ix < 0 or ix >= map_w or iy < 0 or iy >= map_h:
+                hit = True
+                hit_pos = (curr_x, curr_y)
+                break
 
-                # Параметричні коефіцієнти перетину t (для відрізка) та u (для променя)
-                t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / divisor
-                u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / divisor
+            # 2. Перевірка кольору пікселя карти
+            pixel = map_surface.get_at((ix, iy))
+            if (pixel.r, pixel.g, pixel.b) == target_rgb:
+                hit = True
+                hit_pos = (curr_x, curr_y)
+                break
 
-                # Перетин є дійсним, якщо:
-                # 0 <= t <= 1 (перетин лежить у межах відрізка сторони перешкоди)
-                # u > 0 (перетин лежить у напрямку поширення променя, а не позаду нього)
-                if 0 <= t <= 1 and u > 0:
-                    x_point = x1 + t * (x2 - x1)
-                    y_point = y1 + t * (y2 - y1)
-                    dist_check = math.dist(self.pos, (x_point, y_point))
+            # 3. Перевірка додаткових прямокутників (інших машин)
+            if obstacle_boxes:
+                point_rect = pygame.Rect(ix, iy, 1, 1)
+                if any(box.colliderect(point_rect) for box in obstacle_boxes):
+                    hit = True
+                    hit_pos = (curr_x, curr_y)
+                    break
 
-                    # Фіксуємо найближчу до сенсора точку зіткнення
-                    if dist_check < min_distance:
-                        min_distance = dist_check
-                        min_terminus = (x_point, y_point)
+            current_dist += step_size
 
-        self.distance = min_distance
-        self.terminus = min_terminus
+        self.distance = current_dist if hit else self.length
+        self.terminus = hit_pos
+
+    def draw(self, surface: pygame.Surface, color: Tuple[int, int, int] = (255, 0, 0)) -> None:
+        """Візуалізація променя від початку до кінцевої точки (для дебагу)."""
+        pygame.draw.line(surface, color, self.pos, self.terminus, 1)

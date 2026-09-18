@@ -7,9 +7,8 @@ from .config import screen, clock, BACKGROUND_COLOR
 from .car import Car
 from .map import Map
 
-MAP = Map(os.path.abspath(os.path.join(".", "assets", "tilemaps", "map.tmx")))
+MAP = Map(os.path.abspath(os.path.join(".", "assets", "tilemaps", "EmbeddedIntensiveTilemap.png")))
 CARS: list[Car] = []
-WALLS = MAP.walls
 
 def start():
     CARS.clear()
@@ -19,7 +18,7 @@ def start():
 
 def update():
     for car in CARS:
-        car.update(WALLS, CARS)
+        car.update(MAP.image, CARS)
 
 def draw():
     MAP.draw(screen)
